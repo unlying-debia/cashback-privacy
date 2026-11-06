@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Удаление аккаунта — Кешбек банковских карт</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0; padding: 24px 16px; max-width: 640px; margin-inline: auto;
+    background: #f4f7f6; color: #1c1b1f; line-height: 1.55;
+  }
+  .card {
+    background: #fff; border: 1px solid #e0e4e2; border-radius: 16px;
+    padding: 24px; margin-bottom: 16px;
+  }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+  p { margin: 8px 0; }
+  .logo {
+    width: 48px; height: 48px; background: #00695c; color: #fff;
+    border-radius: 12px; display: flex; align-items: center;
+    justify-content: center; font-size: 28px; font-weight: 900; margin-bottom: 12px;
+  }
+  input {
+    width: 100%; padding: 12px; margin: 6px 0; font-size: 16px;
+    border: 1px solid #c4c7c5; border-radius: 10px; background: #fff; color: #1c1b1f;
+  }
+  button {
+    width: 100%; padding: 14px; margin-top: 10px; font-size: 16px; font-weight: 600;
+    border: none; border-radius: 12px; cursor: pointer;
+    background: #00695c; color: #fff;
+  }
+  button.danger { background: #b3261e; }
+  button:disabled { opacity: .5; cursor: default; }
+  .muted { color: #5f6368; font-size: 14px; }
+  .warn {
+    background: #fdecea; border: 1px solid #f5c6c2; border-radius: 12px;
+    padding: 12px 14px; font-size: 14px;
+  }
+  .ok {
+    background: #e6f4ea; border: 1px solid #b7dfc0; border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .err {
+    background: #fdecea; border: 1px solid #f5c6c2; border-radius: 12px;
+    padding: 12px 14px; font-size: 14px;
+  }
+  a { color: #00695c; }
+  ul { padding-left: 20px; }
+  .hidden { display: none; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #111411; color: #e2e3df; }
+    .card { background: #1b1f1c; border-color: #2e332f; }
+    input { background: #14171480; color: #e2e3df; border-color: #444a45; }
+    .muted { color: #9aa09b; }
+  }
+</style>
+</head>
+<body>
+<div class="logo">%</div>
+<h1>Удаление аккаунта</h1>
+<p class="muted">Приложение «Кешбек банковских карт» (debia.ru)</p>
+
+<div class="card" id="intro">
+  <p>Здесь можно <b>безвозвратно удалить</b> аккаунт и все связанные с ним
+  данные: логин, пароль, добавленные банки и категории кешбэка, привязанную
+  почту, историю распознаваний и бонусы.</p>
+  <ul>
+    <li>Удаление действует сразу и отменить его нельзя.</li>
+    <li>Данные семьи удаляются только для вашего аккаунта — аккаунты других
+    участников не затрагиваются.</li>
+    <li>Альтернатива: в самом приложении — <b>Настройки → Удалить аккаунт</b>.</li>
+    <li>Не получается войти? Напишите нам:
+    <a href="mailto:unlying.debia@gmail.com?subject=%D0%A3%D0%B4%D0%B0%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5%20%D0%B0%D0%BA%D0%BA%D0%B0%D1%83%D0%BD%D1%82%D0%B0">unlying.debia@gmail.com</a> —
+    удалим вручную в течение 7 дней.</li>
+  </ul>
+</div>
+
+<div class="card" id="step1">
+  <h2>1. Войдите, чтобы подтвердить владение аккаунтом</h2>
+  <input id="username" placeholder="Логин" autocomplete="username">
+  <input id="password" type="password" placeholder="Пароль" autocomplete="current-password">
+  <button id="loginBtn" onclick="doLogin()">Войти</button>
+  <div id="loginMsg"></div>
+</div>
+
+<div class="card hidden" id="step2">
+  <div class="warn">⚠️ Будут безвозвратно стёрты ваш логин, все банки и
+  категории кешбэка, почта, бонусы и история. Отменить нельзя.</div>
+  <p class="muted" id="whoami"></p>
+  <button class="danger" id="delBtn" onclick="doDelete()">Удалить аккаунт и все данные</button>
+  <div id="delMsg"></div>
+</div>
+
+<div class="card hidden" id="done">
+  <div class="ok">✅ Аккаунт удалён. Все связанные данные стёрты.</div>
+  <p>Если приложение ещё установлено — можно просто удалить его, данные
+  на сервере уже не существуют.</p>
+</div>
+
+<p class="muted">Сервер API: <span id="apiBase">…</span> ·
+<a href="https://unlying-debia.github.io/cashback-privacy/">Политика конфиденциальности</a></p>
+
+<script>
+const API = 'http://146.103.127.106:8000';
+document.getElementById('apiBase').textContent = API;
+let token = null;
+
+async function doLogin() {
+  const btn = document.getElementById('loginBtn');
+  const msg = document.getElementById('loginMsg');
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  msg.innerHTML = '';
+  if (!username || !password) {
+    msg.innerHTML = '<div class="err">Введите логин и пароль</div>';
+    return;
+  }
+  btn.disabled = true;
+  try {
+    const resp = await fetch(API + '/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await resp.json();
+    if (resp.status !== 200 || !data.token) {
+      msg.innerHTML = '<div class="err">' + (data.detail || 'Не удалось войти') + '</div>';
+      return;
+    }
+    token = data.token;
+    document.getElementById('whoami').textContent =
+      'Аккаунт: ' + data.username +
+      (data.email ? ', почта: ' + data.email : '');
+    document.getElementById('step1').classList.add('hidden');
+    document.getElementById('step2').classList.remove('hidden');
+  } catch (e) {
+    msg.innerHTML = '<div class="err">Сервер недоступен. Попробуйте позже ' +
+      'или напишите на почту поддержки.</div>';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function doDelete() {
+  const btn = document.getElementById('delBtn');
+  const msg = document.getElementById('delMsg');
+  msg.innerHTML = '';
+  if (!confirm('Точно удалить аккаунт безвозвратно?')) return;
+  btn.disabled = true;
+  try {
+    const resp = await fetch(API + '/api/account', {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + token },
+    });
+    const data = await resp.json();
+    if (resp.status === 200 && data.deleted) {
+      document.getElementById('step2').classList.add('hidden');
+      document.getElementById('done').classList.remove('hidden');
+    } else {
+      msg.innerHTML = '<div class="err">' +
+        (data.detail || 'Не удалось удалить. Напишите на почту поддержки.') +
+        '</div>';
+      btn.disabled = false;
+    }
+  } catch (e) {
+    msg.innerHTML = '<div class="err">Сервер недоступен. Попробуйте позже ' +
+      'или напишите на почту поддержки.</div>';
+    btn.disabled = false;
+  }
+}
+document.getElementById('password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+</script>
+</body>
+</html>
